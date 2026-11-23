@@ -6,7 +6,6 @@ namespace App\Http\Requests\Tenant;
 
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateProfileRequest extends FormRequest
 {
@@ -33,7 +32,7 @@ class UpdateProfileRequest extends FormRequest
                 'lowercase',
                 'email',
                 'max:255',
-                Rule::unique(User::class)->ignore($this->user()->id),
+                User::uniqueEmailRule($this->user()->id),
             ],
         ];
     }

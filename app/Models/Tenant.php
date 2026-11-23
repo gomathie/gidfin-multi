@@ -5,20 +5,14 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Stancl\Tenancy\Contracts\TenantWithDatabase;
-use Stancl\Tenancy\Database\Concerns\HasDatabase;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Stancl\Tenancy\Database\Concerns\HasDomains;
 use Stancl\Tenancy\Database\Models\Tenant as BaseTenant;
 
-class Tenant extends BaseTenant implements TenantWithDatabase
+class Tenant extends BaseTenant
 {
-    use HasDatabase, HasDomains;
+    use HasDomains;
 
-    /**
-     * Custom columns that are not stored in the data JSON column.
-     *
-     * @return array<string>
-     */
     public static function getCustomColumns(): array
     {
         return [
@@ -29,11 +23,6 @@ class Tenant extends BaseTenant implements TenantWithDatabase
         ];
     }
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<string>
-     */
     protected $fillable = [
         'id',
         'name',
@@ -41,11 +30,6 @@ class Tenant extends BaseTenant implements TenantWithDatabase
         'is_active',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -53,9 +37,6 @@ class Tenant extends BaseTenant implements TenantWithDatabase
         ];
     }
 
-    /**
-     * Get the tenant's primary domain.
-     */
     protected function primaryDomain(): Attribute
     {
         return Attribute::make(
@@ -63,25 +44,21 @@ class Tenant extends BaseTenant implements TenantWithDatabase
         );
     }
 
-    /**
-     * Scope a query to only include active tenants.
-     */
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class)->acrossTenants();
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
 
-    /**
-     * Scope a query to only include inactive tenants.
-     */
     public function scopeInactive($query)
     {
         return $query->where('is_active', false);
     }
 
-    /**
-     * Check if the tenant is active.
-     */
     public function isActive(): bool
     {
         return $this->is_active === true;

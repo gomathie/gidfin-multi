@@ -157,9 +157,11 @@ trait BelongsToTenant
         });
 
         static::addGlobalScope('tenant', function (Builder $query) {
-            if (tenant()) {
-                $query->where($query->getModel()->getTable() . '.tenant_id', tenant()->id);
-            }
+            $column = $query->getModel()->qualifyColumn('tenant_id');
+
+            tenant()
+                ? $query->where($column, tenant()->getTenantKey())
+                : $query->whereNull($column);
         });
     }
 
@@ -170,9 +172,9 @@ trait BelongsToTenant
 }
 ```
 
-Note that this scope does nothing when no tenant is resolved (queues, CLI, central routes). Jobs that touch business tables must set the tenant context explicitly, and Phase 1 must test that path.
+With no tenant resolved (central routes, console, a job that lost its tenant), the scope matches only rows whose `tenant_id` is null. Business tables therefore return nothing, and `users` returns platform admins only. A cross-tenant read has to call `acrossTenants()` (`withoutGlobalScope('tenant')`) and say why. Jobs that touch business tables must run inside the tenant context. Phase 1 tests that path, including a queued job.
 
-`withoutGlobalScope('tenant')` is allowed only in tests and in platform-level aggregate queries, with a comment saying why. Avoid `DB::table()` on business tables, since it bypasses the scope.
+Avoid `DB::table()` on business tables, since it bypasses the scope.
 
 Lender users are scoped twice: current tenant and their own lender.
 

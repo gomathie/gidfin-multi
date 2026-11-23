@@ -2,15 +2,19 @@
 
 > **READ THIS FILE COMPLETELY BEFORE MODIFYING THE PROJECT.**
 >
-> Planning is done and the build has not started. The app is the starter kit folder; `PLANNING.md` says what to build. Your responsibility is to **understand the starter and the plan before writing any code**, not to start scaffolding from assumptions.
+> Planning is done. Phase 0 (audit) and Phase 1 (single-database tenancy) are done. The app lives in the project root; `PLANNING.md` says what to build. Read §1 before writing any code.
 
 ---
 
 # 1. Current Project State (read this first — it will go stale, keep it updated)
 
-- **The app lives in the project root (`multitenant-loan/`)** (confirmed by the user). The starter kit's files were copied here on 2026-10-05; all build work happens here. No domain work has started yet: the root is still the unmodified starter plus docs.
+- **The app lives in the project root (`multitenant-loan/`)** (confirmed by the user). The starter kit's files were copied here on 2026-10-05; all build work happens here.
 - `laravel-multi-tenant-saas-starter-main/` is now only a pristine copy of the starter. Do not edit it.
-- Phase 0 is done: read `docs/architecture/PHASE_0_AUDIT.md` before Phase 1. It corrects the plan in places (string tenant ids, integer user ids, no roles tables) and lists environment blockers.
+- Phase 0 is done: read `docs/architecture/PHASE_0_AUDIT.md`. It corrects the plan in places (string tenant ids, integer user ids, no roles tables) and lists environment blockers.
+- Phase 1 is done. One PostgreSQL database: `DatabaseTenancyBootstrapper` is off, creating a tenant inserts a tenant and a domain and does not create a database, and `BelongsToTenant` fails closed when no tenant is resolved (only rows with a null `tenant_id` are visible). Auth, password reset, suspension, and queued jobs are tenant-scoped. Isolation is proven by `tests/Feature/Tenancy/TenantIsolationTest.php`. Run the suite inside Docker: `docker compose run --rm app php artisan test`.
+- The sample projects feature is still present. It is the tenant-scoped stand-in the isolation tests use, and it goes away when the loan tables replace it.
+- `tenants.is_active` is still the starter's boolean. The `status` enum and the six product roles are Phase 3.
+- Next is Phase 2, the Vue migration (§1.1). Do not start it until Phase 1 has been reviewed.
 - Other confirmed decisions: PostgreSQL 17 on Neon, user email unique per tenant, Ghana defaults (`GH` / `GHS` / `Africa/Accra`). Details and consequences are in `PLANNING.md` §1.
 - `lamas-php-main/` will be removed later, so capture anything worth keeping from it in writing during Phase 0.
 - Two reference repositories are present at the project root:
@@ -466,6 +470,25 @@ Correctness → Security (esp. tenant isolation & rate/visibility privacy) → P
 **Why:** The user asked for Phase 0 and, mid-way, for the app to live in the project root.
 **Method:** Read configs, models, migrations, routes, auth controllers, services, seeders and lock files of both repos; checked the local toolchain.
 **Verification:** Nothing was installed or run. Local PHP is 8.3 without `pdo_pgsql`, and there is no Redis or PostgreSQL, so the app cannot run yet.
+
+**Date:** 2026-11-24
+**Agent Action:** Proved Phase 1 single-database tenancy and fixed the isolation tests.
+**What was done:**
+- Confirmed the single-database conversion already in the tree: no database bootstrapper, `BelongsToTenant` fail-closed scope, tenant-scoped auth and password reset, suspension middleware, no tenant deletion.
+- Fixed the isolation tests to call `$tenant->run()`, which is the stancl/tenancy v3 API. `tenancy()->run()` does not exist in this version.
+- Pointed PHPUnit at Redis so tenant cache tags have a store that supports them, and gave the suite an application key.
+- Pointed `tenants:migrate` at the shared migrations directory. There is no `database/migrations/tenant` path.
+- Aligned `PLANNING.md` with the fail-closed scope.
+**Files changed:**
+- `tests/Feature/Tenancy/TenantIsolationTest.php`
+- `phpunit.xml`
+- `config/tenancy.php`
+- `PLANNING.md`
+- `agents.md`
+- `CHANGELOG.md`
+**Why:** Phase 1 was implemented but had never been executed. The isolation tests called a method this version of stancl/tenancy does not provide, so the suite could not prove tenant isolation.
+**Method:** Built the PHP 8.4 image from `docker/Dockerfile`, installed Composer dependencies, started PostgreSQL 17 and Redis from `compose.yaml`, and ran `php artisan test` inside the app container.
+**Verification:** `docker compose run --rm app php artisan test` — 38 passed (83 assertions), including all 16 tenant-isolation tests.
 
 ---
 

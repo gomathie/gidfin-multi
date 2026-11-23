@@ -5,44 +5,45 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Tenant;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 class TenantService
 {
-    /**
-     * Create a new tenant with domain.
-     *
-     * Note: We don't wrap this in a DB transaction because Stancl/Tenancy
-     * fires events that trigger jobs (CreateDatabase, etc.) which manage
-     * their own transactions.
-     *
-     * @param  array<string, mixed>  $data
-     */
     public function createTenant(array $data): Tenant
     {
-        // Build full domain from subdomain + app domain
         $subdomain = $data['domain'];
         $fullDomain = $subdomain.'.'.config('app.domain');
 
-        $tenant = Tenant::create([
-            'id' => $subdomain,
-            'name' => $data['name'],
-            'admin_email' => $data['admin_email'],
-            'is_active' => $data['is_active'] ?? true,
-        ]);
+        return DB::transaction(function () use ($data, $subdomain, $fullDomain) {
+            $tenant = Tenant::create([
+                'id' => $subdomain,
+                'name' => $data['name'],
+                'admin_email' => $data['admin_email'],
+                'is_active' => $data['is_active'] ?? true,
+            ]);
 
-        $tenant->domains()->create([
-            'domain' => $fullDomain,
-        ]);
+            $tenant->domains()->create([
+                'domain' => $fullDomain,
+            ]);
 
-        return $tenant->load('domains');
+            // Without a supplied password the admin gets an unguessable one and signs in
+            // through "forgot password" or platform impersonation.
+            (new User)->forceFill([
+                'tenant_id' => $tenant->id,
+                'name' => 'Admin',
+                'email' => $data['admin_email'],
+                'email_verified_at' => now(),
+                'password' => $data['admin_password'] ?? Str::password(40),
+                'role' => 'admin',
+            ])->save();
+
+            return $tenant->load('domains');
+        });
     }
 
-    /**
-     * Update an existing tenant.
-     *
-     * @param  array<string, mixed>  $data
-     */
     public function updateTenant(Tenant $tenant, array $data): Tenant
     {
         $tenant->update([
@@ -55,22 +56,15 @@ class TenantService
     }
 
     /**
-     * Delete a tenant and its associated resources.
+     * Tenants own financial records, so they are deactivated rather than deleted.
      *
-     * Note: Stancl/Tenancy handles database deletion via events.
+     * @throws InvalidArgumentException
      */
-    public function deleteTenant(Tenant $tenant): bool
+    public function deleteTenant(Tenant $tenant): never
     {
-        // Delete all domains first
-        $tenant->domains()->delete();
-
-        // Delete the tenant (this will also drop the tenant database via Stancl)
-        return $tenant->delete();
+        throw new InvalidArgumentException('Tenants cannot be deleted. Deactivate the tenant instead.');
     }
 
-    /**
-     * Toggle the active status of a tenant.
-     */
     public function toggleStatus(Tenant $tenant): Tenant
     {
         $tenant->update([
@@ -80,9 +74,6 @@ class TenantService
         return $tenant->fresh();
     }
 
-    /**
-     * Generate a unique tenant ID from the name.
-     */
     public function generateTenantId(string $name): string
     {
         $baseId = Str::slug($name);

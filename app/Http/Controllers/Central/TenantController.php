@@ -12,6 +12,7 @@ use App\Services\TenantService;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 
 class TenantController extends Controller
 {
@@ -116,11 +117,11 @@ class TenantController extends Controller
      */
     public function destroy(Tenant $tenant): RedirectResponse
     {
-        $this->tenantService->deleteTenant($tenant);
-
-        return redirect()
-            ->route('admin.tenants.index')
-            ->with('success', 'Tenant deleted successfully.');
+        try {
+            $this->tenantService->deleteTenant($tenant);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     /**

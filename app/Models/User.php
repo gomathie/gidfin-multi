@@ -4,31 +4,25 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use BelongsToTenant, HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * Available tenant user roles.
-     */
     public const ROLES = [
         'admin' => 'Admin',
         'user' => 'User',
     ];
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
+        'tenant_id',
         'name',
         'email',
         'password',
@@ -36,21 +30,11 @@ class User extends Authenticatable
         'role',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -60,37 +44,31 @@ class User extends Authenticatable
         ];
     }
 
-    /**
-     * Check if the user is a central admin (for admin panel access).
-     */
     public function isAdmin(): bool
     {
-        return $this->is_admin === true;
+        return $this->is_admin === true && $this->tenant_id === null;
     }
 
-    /**
-     * Check if the user is a tenant admin (for tenant app access).
-     * Used in tenant context where 'role' column exists.
-     */
     public function isTenantAdmin(): bool
     {
         return $this->role === 'admin';
     }
 
-    /**
-     * Check if the user has a specific role.
-     */
     public function hasRole(string $role): bool
     {
         return $this->role === $role;
     }
 
-    /**
-     * Get the projects created by this user.
-     * Only available in tenant context.
-     */
-    public function projects(): HasMany
+    public static function uniqueEmailRule(?int $ignoreId = null): Unique
     {
-        return $this->hasMany(Project::class, 'created_by');
+        $rule = Rule::unique('users', 'email')->where('tenant_id', tenant()?->getTenantKey());
+
+        return $ignoreId === null ? $rule : $rule->ignore($ignoreId);
+    }
+
+    // Emails repeat across tenants, so reset tokens are keyed by tenant and email together.
+    public function getEmailForPasswordReset(): string
+    {
+        return ($this->tenant_id ?? '').'|'.$this->email;
     }
 }

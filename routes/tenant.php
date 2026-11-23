@@ -11,6 +11,7 @@ use App\Http\Controllers\Tenant\ImpersonationController;
 use App\Http\Controllers\Tenant\ProfileController;
 use App\Http\Controllers\Tenant\ProjectController;
 use App\Http\Controllers\Tenant\UserController;
+use App\Http\Middleware\EnsureTenantIsActive;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
@@ -32,6 +33,7 @@ Route::middleware([
     'web',
     InitializeTenancyByDomain::class,
     PreventAccessFromCentralDomains::class,
+    EnsureTenantIsActive::class,
 ])->group(function () {
     // Root redirect - accessible to all
     Route::get('/', function () {
@@ -118,6 +120,7 @@ Route::middleware([
 Route::middleware([
     InitializeTenancyByDomain::class,
     PreventAccessFromCentralDomains::class,
+    EnsureTenantIsActive::class,
 ])->prefix('api')->group(function () {
     require __DIR__.'/api-tenant.php';
 });

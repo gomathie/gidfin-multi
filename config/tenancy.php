@@ -26,7 +26,8 @@ return [
      * To configure their behavior, see the config keys below.
      */
     'bootstrappers' => [
-        Stancl\Tenancy\Bootstrappers\DatabaseTenancyBootstrapper::class,
+        // No DatabaseTenancyBootstrapper: all tenants share one database and rows are
+        // scoped by tenant_id (see App\Models\Concerns\BelongsToTenant).
         Stancl\Tenancy\Bootstrappers\CacheTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\FilesystemTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\QueueTenancyBootstrapper::class,
@@ -179,19 +180,22 @@ return [
     'routes' => true,
 
     /**
-     * Parameters used by the tenants:migrate command.
+     * tenants:migrate / tenants:seed are not part of single-database mode.
+     * Every migration lives in database/migrations/ and runs once. The path
+     * below is the shared schema, so a mistaken tenants:migrate cannot look
+     * for the removed database/migrations/tenant directory.
      */
     'migration_parameters' => [
-        '--force' => true, // This needs to be true to run migrations in production.
-        '--path' => [database_path('migrations/tenant')],
+        '--force' => true,
+        '--path' => [database_path('migrations')],
         '--realpath' => true,
     ],
 
     /**
-     * Parameters used by the tenants:seed command.
+     * tenants:seed is not used. The class is intentionally not a real seeder,
+     * so the command fails instead of inserting the platform seed once per tenant.
      */
     'seeder_parameters' => [
         '--class' => 'TenantDatabaseSeeder',
-        // '--force' => true, // This needs to be true to seed tenant databases in production
     ],
 ];

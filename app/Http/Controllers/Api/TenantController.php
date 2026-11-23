@@ -12,6 +12,7 @@ use App\Http\Resources\TenantResource;
 use App\Models\Tenant;
 use App\Services\TenantService;
 use Illuminate\Http\JsonResponse;
+use InvalidArgumentException;
 
 /**
  * Central API Tenant Controller.
@@ -88,9 +89,11 @@ class TenantController extends Controller
      */
     public function destroy(Tenant $tenant): JsonResponse
     {
-        $this->tenantService->deleteTenant($tenant);
-
-        return $this->noContent('Tenant deleted successfully');
+        try {
+            $this->tenantService->deleteTenant($tenant);
+        } catch (InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), null, 409);
+        }
     }
 
     /**
